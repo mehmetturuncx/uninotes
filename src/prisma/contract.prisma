@@ -1,0 +1,18 @@
+// use prisma-next
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  createdAt Timestamptz(6) @default(now())
+  updatedAt temporal.updatedAt()
+}
+
+model InviteCode {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  isUsed    Boolean  @default(false)
+  usedById  String?  @unique
+  createdAt Timestamptz(6) @default(now())
+  updatedAt temporal.updatedAt()
+}
