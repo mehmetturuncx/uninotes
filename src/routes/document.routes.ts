@@ -14,10 +14,15 @@ const upload = multer({
     limits: { fileSize: 20 * 1024 * 1024 }
 });
 
-const connection = {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379')
-};
+import IORedis from 'ioredis';
+
+const connection = process.env.REDIS_URL 
+    ? new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: null })
+    : new IORedis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        maxRetriesPerRequest: null
+      });
 
 const ocr_queue = new Queue('ocr-queue', {connection, defaultJobOptions: {
     attempts: 3,
