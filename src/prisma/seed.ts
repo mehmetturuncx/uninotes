@@ -1,8 +1,12 @@
-import { db } from './db.js';
+import { Temporal } from '@js-temporal/polyfill';
+(globalThis as any).Temporal = Temporal;
+
 import crypto from 'crypto';
-import '@js-temporal/polyfill'; // Prisma v8 Next.js requirement
 
 async function main() {
+    // db'yi Temporal yüklendikten sonra dinamik olarak içe aktarıyoruz
+    const { db } = await import('./db');
+    
     console.log("Seeding started...");
 
     const codesToCreate = 5;
