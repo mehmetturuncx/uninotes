@@ -25,11 +25,11 @@ Kullanıcının sisteme sadece davet kodu ile kaydolmasını sağlar.
 - **Başarılı Dönüş (201 Created):**
 ```json
 {
+  "token": "jwt_token_string",
   "user": {
     "id": "uuid-v4",
     "email": "student@campus.edu"
-  },
-  "token": "jwt_token_string"
+  }
 }
 ```
 
@@ -46,11 +46,12 @@ Kullanıcının sisteme sadece davet kodu ile kaydolmasını sağlar.
 - **Başarılı Dönüş (200 OK):**
 ```json
 {
+  "message": "Login succesfull!",
+  "token": "jwt_token_string",
   "user": {
     "id": "uuid-v4",
     "email": "student@campus.edu"
-  },
-  "token": "jwt_token_string"
+  }
 }
 ```
 
@@ -58,12 +59,13 @@ Kullanıcının sisteme sadece davet kodu ile kaydolmasını sağlar.
 
 ## 2. Dökümanlar (Documents)
 
-### 3. Kullanıcının Belgelerini Listeleme
-- **URL:** `/documents`
+### 2.1. Belgeleri Listeleme
+Sistemdeki tüm belgeleri (ortak arşiv) en yeniden en eskiye sıralı olarak döndürür.
 - **Method:** `GET`
-- **Headers:** 
-  - `Authorization: Bearer <token>`
-- **Response (200 OK):**
+- **Endpoint:** `/documents`
+- **Headers:**
+  - `Authorization: Bearer <TOKEN>`
+- **Başarılı Dönüş (200 OK):**
 ```json
 {
   "documents": [
@@ -78,11 +80,11 @@ Kullanıcının sisteme sadece davet kodu ile kaydolmasını sağlar.
 }
 ```
 
-### 4. Belge Yükleme (PDF veya Resim)
+### 2.2. Belge Yükleme (PDF veya Resim)
 Kullanıcının PDF veya Fotoğraf dosyası yüklemesini sağlar. PDF'ler `PENDING` statüsünde yüklenir ve OCR işlemine girer.
 - **Method:** `POST`
 - **Endpoint:** `/documents/upload`
-- **Headers:** 
+- **Headers:**
   - `Authorization: Bearer <TOKEN>`
   - `Content-Type: multipart/form-data`
 - **Body:**
@@ -93,7 +95,7 @@ Kullanıcının PDF veya Fotoğraf dosyası yüklemesini sağlar. PDF'ler `PENDI
   "document": {
     "id": "uuid-v4",
     "title": "Matematik_Notlari.pdf",
-    "url": "https://s3.amazonaws.com/.../Matematik_Notlari.pdf",
+    "url": "https://pub-xxx.r2.dev/Matematik_Notlari.pdf",
     "hash": "sha256_hash_value",
     "size": 1048576,
     "mimeType": "application/pdf",
@@ -105,13 +107,13 @@ Kullanıcının PDF veya Fotoğraf dosyası yüklemesini sağlar. PDF'ler `PENDI
 ```
 *(Dosya zaten sistemde varsa `409 Conflict` döner)*
 
-### 2.2. Tam Metin Arama (Search)
+### 2.3. Tam Metin Arama (Search)
 Yüklenen dökümanlar arasında yazım toleranslı (typo-tolerant) arama yapar (PostgreSQL pg_trgm destekli).
 - **Method:** `GET`
 - **Endpoint:** `/documents/search`
-- **Query Parametreleri:** 
+- **Query Parametreleri:**
   - `q`: Aranacak kelime (Örn: `?q=matematik`)
-- **Headers:** 
+- **Headers:**
   - `Authorization: Bearer <TOKEN>`
 - **Başarılı Dönüş (200 OK):**
 ```json
@@ -120,10 +122,24 @@ Yüklenen dökümanlar arasında yazım toleranslı (typo-tolerant) arama yapar 
     {
       "id": "uuid-v4",
       "title": "Matematik_Notlari.pdf",
-      "url": "https://s3.amazonaws.com/.../Matematik_Notlari.pdf",
+      "url": "https://pub-xxx.r2.dev/Matematik_Notlari.pdf",
       "mimeType": "application/pdf",
       "status": "COMPLETED"
     }
   ]
 }
 ```
+
+### 2.4. Belge Silme (Delete)
+Bir belgeyi hem veritabanından hem de Cloudflare R2'den kalıcı olarak siler.
+- **Method:** `DELETE`
+- **Endpoint:** `/documents/:id`
+- **Headers:**
+  - `Authorization: Bearer <TOKEN>`
+- **Başarılı Dönüş (200 OK):**
+```json
+{
+  "message": "Document deleted successfully!"
+}
+```
+*(Belge bulunamazsa `404 Not Found` döner)*

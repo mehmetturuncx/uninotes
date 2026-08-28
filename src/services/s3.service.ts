@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
 
 // S3 veya Cloudflare R2 için istemciyi (Client) oluşturuyoruz
@@ -43,4 +43,21 @@ export const uploadFile = async (fileBuffer: Buffer, fileName: string, mimeType:
 
   // Public domain yoksa standart S3 linki döndür (Bucket private ise erişilemeyebilir)
   return `https://${bucketName}.s3.${process.env.AWS_REGION || 'auto'}.amazonaws.com/${uniqueFileName}`;
+};
+
+export const deleteFile = async (fileUrl: string): Promise<void> => {
+  const bucketName = process.env.S3_BUCKET_NAME;
+  if (!bucketName) {
+    throw new Error('S3_BUCKET_NAME environment variable is not set!');
+  }
+
+  // URL'den dosya adını (Key) çıkarıyoruz (son / den sonraki kısım)
+  const key = fileUrl.substring(fileUrl.lastIndexOf('/') + 1);
+
+  const command = new DeleteObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+  });
+
+  await s3Client.send(command);
 };

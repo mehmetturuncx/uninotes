@@ -2,7 +2,7 @@ import { authMiddleware } from "../middlewares/auth.middleware";
 import { Router } from "express";
 import multer from 'multer';
 import crypto from 'crypto';
-import { uploadFile } from "../services/s3.service";
+import { uploadFile, deleteFile } from "../services/s3.service";
 import { db } from "../prisma/db";
 import { Queue } from "bullmq";
 
@@ -91,18 +91,17 @@ router.get('/search', authMiddleware, async (req,res)=>{
 
     try {
         await pool.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
-        await pool.query('SET pg_trgm.similarity_threshold = 0.1;');
         
         const queryText = `
             SELECT id, title, url, "mimeType", "status"
             FROM "document"
             WHERE (
-                title % $1 OR 
-                "textContent" % $1 OR
+                SIMILARITY(title, $1) > 0.1 OR
+                SIMILARITY(COALESCE("textContent", ''), $1) > 0.1 OR
                 title ILIKE '%' || $1 || '%' OR
-                "textContent" ILIKE '%' || $1 || '%'
+                COALESCE("textContent", '') ILIKE '%' || $1 || '%'
               )
-            ORDER BY SIMILARITY(title, $1) + SIMILARITY("textContent", $1) DESC
+            ORDER BY SIMILARITY(title, $1) + SIMILARITY(COALESCE("textContent", ''), $1) DESC
             LIMIT 20;
         `;
         
@@ -132,6 +131,41 @@ router.get('/', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error("List documents error: ", error);
         return res.status(500).json({ message: "Something went wrong while fetching documents!" });
+    }
+});
+
+// Dosya silme (sadece yükleyen kullanıcı veya herhangi bir kullanıcı silebilir — MVP)
+router.delete('/:id', authMiddleware, async (req, res) => {
+    const user = req.user?.id;
+    if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const documentId = req.params.id as string;
+
+    try {
+        const document = await db.orm.public.Document.where({ id: documentId }).first();
+
+        if (!document) {
+            return res.status(404).json({ message: "Document not found!" });
+        }
+
+        // Cloudflare R2'den dosyayı sil
+        if (document.url) {
+            try {
+                await deleteFile(document.url);
+            } catch (e) {
+                console.error("R2 delete error (continuing with DB delete): ", e);
+            }
+        }
+
+        // Veritabanından kaydı sil
+        await db.orm.public.Document.where({ id: documentId }).delete();
+
+        return res.status(200).json({ message: "Document deleted successfully!" });
+    } catch (error) {
+        console.error("Delete document error: ", error);
+        return res.status(500).json({ message: "Something went wrong while deleting the document!" });
     }
 });
 
