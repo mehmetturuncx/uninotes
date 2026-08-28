@@ -1,6 +1,6 @@
-# Campus Vault - API Referansı
+# UniNotes - API Referansı
 
-Bu doküman Campus Vault backend MVP'sinin uç noktalarını (endpoints) içerir. Tüm API istekleri `/` (kök) URL üzerinden gösterilmiştir (örnek: `http://localhost:3000`).
+Bu doküman UniNotes backend MVP'sinin uç noktalarını (endpoints) içerir. Tüm API istekleri `/` (kök) URL üzerinden gösterilmiştir (örnek: `http://localhost:3000`).
 
 ## Genel Kurallar
 - İstek ve dönüş tipleri varsayılan olarak `application/json` formatındadır.

@@ -1,6 +1,6 @@
-# Campus Vault - Backend
+# UniNotes - Backend
 
-Campus Vault, üniversite öğrencilerinin ders notlarını (PDF ve Fotoğraf) yükleyip, daha sonra kendi notları arasında kelime ve yazım hatası toleranslı olarak arama yapabildiği bir eğitim-asistan uygulamasıdır. 
+UniNotes, üniversite öğrencilerinin ders notlarını (PDF ve Fotoğraf) yükleyip, daha sonra kendi notları arasında kelime ve yazım hatası toleranslı olarak arama yapabildiği bir eğitim-asistan uygulamasıdır. 
 
 Bu depo (repository) uygulamanın API'lerini, veritabanı yönetimini ve arka plan işlemlerini (OCR) yöneten backend kısmını içerir.
 
