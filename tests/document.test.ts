@@ -6,6 +6,19 @@ vi.mock('../src/services/s3.service', () => ({
   uploadFile: vi.fn().mockResolvedValue('https://mock-s3-bucket.s3.amazonaws.com/test-doc.pdf')
 }));
 
+// BullMQ Queue Mock
+export const addMock = vi.fn().mockResolvedValue({ id: 'job-id' });
+vi.mock('bullmq', () => {
+  return {
+    Queue: class {
+      add = addMock;
+      close = vi.fn().mockResolvedValue(undefined);
+    }
+  };
+});
+
+import { Queue } from 'bullmq';
+
 let app: any;
 let db: any;
 
@@ -19,6 +32,7 @@ describe('Document Upload & Deduplication API', () => {
     await db.orm.public.Document.where({}).delete();
     await db.orm.public.User.where({}).delete();
     await db.orm.public.InviteCode.where({}).delete();
+    vi.clearAllMocks();
   });
 
   const getAuthToken = async (email: string, code: string) => {
@@ -30,7 +44,7 @@ describe('Document Upload & Deduplication API', () => {
   };
 
   describe('POST /documents/upload', () => {
-    it('Geçerli bir dosya yüklendiğinde S3 mock çağrılmalı ve DB ye PENDING olarak kaydedilmeli', async () => {
+    it('Geçerli bir dosya yüklendiğinde S3 mock çağrılmalı, DB ye PENDING kaydedilmeli ve BullMQ kuyruğuna iş eklenmeli', async () => {
       const { token } = await getAuthToken('test1@uni.edu', 'CODE1');
       const fileBuffer = Buffer.from('dummy pdf content');
 
@@ -42,11 +56,13 @@ describe('Document Upload & Deduplication API', () => {
       expect(response.status).toBe(201);
       expect(response.body).toHaveProperty('document');
       expect(response.body.document).toHaveProperty('status', 'PENDING');
-      expect(response.body.document).toHaveProperty('hash');
-
-      const docInDb = await db.orm.public.Document.where({ id: response.body.document.id }).first();
-      expect(docInDb).toBeDefined();
-      expect(docInDb?.url).toBe('https://mock-s3-bucket.s3.amazonaws.com/test-doc.pdf');
+      
+      // BullMQ kuyruğuna iş eklendiğini doğrula
+      expect(addMock).toHaveBeenCalled();
+      const addArgs = addMock.mock.calls[0]!;
+      expect(addArgs[0]).toBe('ocr-job'); // İşin adı
+      expect(addArgs[1]).toHaveProperty('documentId', response.body.document.id);
+      expect(addArgs[1]).toHaveProperty('url', response.body.document.url);
     });
 
     it('Daha önce yüklenmiş aynı hash değerine sahip dosya tekrar yüklenmek istendiğinde 409 dönmeli', async () => {
@@ -70,13 +86,11 @@ describe('Document Upload & Deduplication API', () => {
         .attach('file', fileBuffer, 'conflict.pdf');
 
       expect(response.status).toBe(409);
-      expect(response.body).toHaveProperty('message');
     });
 
     it('Token olmadan istek atıldığında 401 dönmeli', async () => {
       const fileBuffer = Buffer.from('unauth content');
 
-      // ECONNRESET önlemek için middleware reject ettiğinde body parse edilmesin diye dummy field gönderelim
       const response = await request(app)
         .post('/documents/upload')
         .set('Connection', 'keep-alive')

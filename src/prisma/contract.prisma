@@ -26,13 +26,14 @@ enum DocumentStatus {
 }
 
 model Document {
-  id        String         @id @default(uuid())
-  title     String
-  url       String?
-  hash      String         @unique
-  size      Int
-  mimeType  String
-  status    DocumentStatus @default(PENDING)
+  id          String         @id @default(uuid())
+  title       String
+  url         String?
+  hash        String         @unique
+  size        Int
+  mimeType    String
+  textContent String?
+  status      DocumentStatus @default(PENDING)
   userId    String
   user      User           @relation(fields: [userId], references: [id])
   createdAt Timestamptz(6) @default(now())

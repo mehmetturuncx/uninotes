@@ -4,6 +4,7 @@ import multer from 'multer';
 import crypto from 'crypto';
 import { uploadFile } from "../services/s3.service";
 import { db } from "../prisma/db";
+import { Queue } from "bullmq";
  
 const router = Router();
 
@@ -11,6 +12,16 @@ const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 }
 });
+
+const connection = {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379')
+};
+
+const ocr_queue = new Queue('ocr-queue', {connection, defaultJobOptions: {
+    attempts: 3,
+    backoff: {type: 'fixed', delay: 1000}
+}});
 
 router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
     const user = req.user?.id;
@@ -40,6 +51,8 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
             userId: user,
             status: "PENDING"
         });
+
+        await ocr_queue.add('ocr-job',{documentId: createdDoc.id, url: createdDoc.url});
 
         return res.status(201).json({ document: createdDoc });
     }

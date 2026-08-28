@@ -97,6 +97,13 @@
                   "plane": "domain"
                 }
               },
+              "textContent": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "title": {
                 "nullable": false,
                 "type": {
@@ -162,6 +169,9 @@
                 },
                 "status": {
                   "column": "status"
+                },
+                "textContent": {
+                  "column": "textContent"
                 },
                 "title": {
                   "column": "title"
@@ -399,6 +409,11 @@
                     "plane": "storage"
                   }
                 },
+                "textContent": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "title": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -592,7 +607,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "c4c8ffb58ebd6cbd63510a2f3f6b30273bb040dd2250b75313d121227424e113"
+    "storageHash": "b58a6b227bed68a5789ed7ddfc7541cfae249f7148b140b605d68ad19d3abc97"
   },
   "execution": {
     "executionHash": "82064c258a0d17f4e45da9cc5a91e829b7e08a11d2cb5edf65bf56ce5b272d10",
