@@ -1,1 +1,0 @@
-import { PDFParse } from 'pdf-parse'; (async () => { const res = await fetch('https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'); const buf = new Uint8Array(await res.arrayBuffer()); const p = new PDFParse(buf); console.log(await p.getText()); await p.destroy(); })();
