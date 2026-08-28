@@ -90,23 +90,32 @@ router.get('/search', authMiddleware, async (req,res)=>{
     }
 
     try {
-        // PgBouncer transaction mode'da SET komutlarının kaybolmaması için
-        // pool'dan ayrı bir client alıp tüm sorguları onun üzerinden yapıyoruz
         const client = await pool.connect();
         try {
             await client.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+            await client.query('CREATE EXTENSION IF NOT EXISTS unaccent;');
             await client.query("SET client_encoding TO 'UTF8';");
             
             const queryText = `
                 SELECT id, title, url, "mimeType", "status"
                 FROM "document"
                 WHERE (
-                    SIMILARITY(title, $1) > 0.1 OR
-                    SIMILARITY(COALESCE("textContent", ''), $1) > 0.1 OR
-                    title ILIKE '%' || $1 || '%' OR
-                    COALESCE("textContent", '') ILIKE '%' || $1 || '%'
-                  )
-                ORDER BY SIMILARITY(title, $1) + SIMILARITY(COALESCE("textContent", ''), $1) DESC
+                    -- 1. Exact or Substring with Turkish normalization (unaccent + lower)
+                    unaccent(LOWER(title)) ILIKE '%' || unaccent(LOWER($1)) || '%' OR
+                    unaccent(LOWER(COALESCE("textContent", ''))) ILIKE '%' || unaccent(LOWER($1)) || '%' OR
+                    -- 2. Word similarity with original text (fuzzy matching on words)
+                    WORD_SIMILARITY($1, title) > 0.3 OR
+                    WORD_SIMILARITY($1, COALESCE("textContent", '')) > 0.3 OR
+                    -- 3. Word similarity with unaccented text (for typos on Turkish chars)
+                    WORD_SIMILARITY(unaccent(LOWER($1)), unaccent(LOWER(title))) > 0.3 OR
+                    WORD_SIMILARITY(unaccent(LOWER($1)), unaccent(LOWER(COALESCE("textContent", '')))) > 0.3
+                )
+                ORDER BY GREATEST(
+                    WORD_SIMILARITY($1, title),
+                    WORD_SIMILARITY($1, COALESCE("textContent", '')),
+                    WORD_SIMILARITY(unaccent(LOWER($1)), unaccent(LOWER(title))),
+                    WORD_SIMILARITY(unaccent(LOWER($1)), unaccent(LOWER(COALESCE("textContent", ''))))
+                ) DESC, "createdAt" DESC
                 LIMIT 20;
             `;
             
