@@ -5,6 +5,8 @@
     // "rootDir": "./src",
     // "outDir": "./dist",
 
+    "allowSyntheticDefaultImports": true,
+
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "preserve",
@@ -44,5 +46,6 @@
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    "esModuleInterop": true
   }
 }
