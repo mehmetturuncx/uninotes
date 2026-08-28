@@ -2,14 +2,17 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
 
 // S3 veya Cloudflare R2 için istemciyi (Client) oluşturuyoruz
-const s3Client = new S3Client({
+const s3Config: any = {
   region: process.env.AWS_REGION || 'auto',
-  endpoint: process.env.S3_ENDPOINT_URL, // Cloudflare R2 için gerekli (örn: https://<account_id>.r2.cloudflarestorage.com)
   credentials: {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
   },
-});
+};
+if (process.env.S3_ENDPOINT_URL) {
+  s3Config.endpoint = process.env.S3_ENDPOINT_URL;
+}
+const s3Client = new S3Client(s3Config);
 
 export const uploadFile = async (fileBuffer: Buffer, fileName: string, mimeType: string): Promise<string> => {
   const bucketName = process.env.S3_BUCKET_NAME;

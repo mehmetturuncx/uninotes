@@ -126,8 +126,8 @@ router.get('/', authMiddleware, async (req, res) => {
 
     try {
         const documents = await db.orm.public.Document.where({ userId: user })
-            .orderBy('createdAt', 'desc')
-            .many();
+            .orderBy(doc => doc.createdAt.desc())
+            .all();
         
         return res.status(200).json({ documents });
     } catch (error) {
