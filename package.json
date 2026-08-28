@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "vitest",
+    "seed": "tsx src/prisma/seed.ts",
     "contract:emit": "prisma contract emit"
   },
   "keywords": [],
