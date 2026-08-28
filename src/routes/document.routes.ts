@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { uploadFile } from "../services/s3.service";
 import { db } from "../prisma/db";
 import { Queue } from "bullmq";
+
  
 const router = Router();
 
@@ -42,6 +43,8 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
         }
         const uploadedFile = await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype);
 
+        const isPdf = req.file.mimetype === 'application/pdf';
+
         const createdDoc = await db.orm.public.Document.create({
             title: req.file.originalname,
             url: uploadedFile,
@@ -49,8 +52,17 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
             size: req.file.buffer.length,
             mimeType: req.file.mimetype,
             userId: user,
-            status: "PENDING"
+            status: isPdf ? "PENDING": "COMPLETED"
         });
+
+        if (isPdf) {
+            await ocr_queue.add('ocr-job', {
+                documentId: createdDoc.id,
+                url: createdDoc.url
+            }, {attempts: 3, backoff: {
+                type: 'fixed', delay: 1000
+            }});
+        }
 
         await ocr_queue.add('ocr-job',{documentId: createdDoc.id, url: createdDoc.url});
 
