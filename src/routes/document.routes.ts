@@ -96,18 +96,17 @@ router.get('/search', authMiddleware, async (req,res)=>{
         const queryText = `
             SELECT id, title, url, "mimeType", "status"
             FROM "document"
-            WHERE "userId" = $1 
-              AND (
-                title % $2 OR 
-                "textContent" % $2 OR
-                title ILIKE '%' || $2 || '%' OR
-                "textContent" ILIKE '%' || $2 || '%'
+            WHERE (
+                title % $1 OR 
+                "textContent" % $1 OR
+                title ILIKE '%' || $1 || '%' OR
+                "textContent" ILIKE '%' || $1 || '%'
               )
-            ORDER BY SIMILARITY(title, $2) + SIMILARITY("textContent", $2) DESC
+            ORDER BY SIMILARITY(title, $1) + SIMILARITY("textContent", $1) DESC
             LIMIT 20;
         `;
         
-        const result = await pool.query(queryText, [user, q]);
+        const result = await pool.query(queryText, [q]);
         
         return res.status(200).json({results: result.rows});
     } 
@@ -125,7 +124,7 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 
     try {
-        const documents = await db.orm.public.Document.where({ userId: user })
+        const documents = await db.orm.public.Document.where({})
             .orderBy(doc => doc.createdAt.desc())
             .all();
         
