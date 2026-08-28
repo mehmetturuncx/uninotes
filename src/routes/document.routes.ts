@@ -64,12 +64,51 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
             }});
         }
 
-        await ocr_queue.add('ocr-job',{documentId: createdDoc.id, url: createdDoc.url});
-
         return res.status(201).json({ document: createdDoc });
     }
     catch (error) {
         return res.status(500).json({message: "Something went wrong."});
+    }
+});
+
+import { Pool } from 'pg';
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+router.get('/search', authMiddleware, async (req,res)=>{
+    const user = req.user?.id;
+    if(!user) {
+        return res.status(401).json({message: "Unauthorized"});
+    }
+    const q = req.query.q as string;
+    if(!q) {
+        return res.status(400).json({message: "Search term is required!"});
+    }
+
+    try {
+        await pool.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+        await pool.query('SET pg_trgm.similarity_threshold = 0.1;');
+        
+        const queryText = `
+            SELECT id, title, url, "mimeType", "status"
+            FROM "document"
+            WHERE "userId" = $1 
+              AND (
+                title % $2 OR 
+                "textContent" % $2 OR
+                title ILIKE '%' || $2 || '%' OR
+                "textContent" ILIKE '%' || $2 || '%'
+              )
+            ORDER BY SIMILARITY(title, $2) + SIMILARITY("textContent", $2) DESC
+            LIMIT 20;
+        `;
+        
+        const result = await pool.query(queryText, [user, q]);
+        
+        return res.status(200).json({results: result.rows});
+    } 
+    catch (error) {
+        console.error("Search error: ", error);
+        return res.status(500).json({ message: "Something went wrong while searching!"});
     }
 });
 
