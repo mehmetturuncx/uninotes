@@ -14,9 +14,9 @@ export const startOcrWorker = (RedisConnection: any) => {
         
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const uint8Array = new Uint8Array(arrayBuffer);
 
-        const parser = new PDFParse(buffer);
+        const parser = new PDFParse(uint8Array);
         const result = await parser.getText();
         await parser.destroy();
 
