@@ -117,4 +117,23 @@ router.get('/search', authMiddleware, async (req,res)=>{
     }
 });
 
+// Kullanıcının kendi yüklediği dökümanları listeleme
+router.get('/', authMiddleware, async (req, res) => {
+    const user = req.user?.id;
+    if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    try {
+        const documents = await db.orm.public.Document.where({ userId: user })
+            .orderBy('createdAt', 'desc')
+            .many();
+        
+        return res.status(200).json({ documents });
+    } catch (error) {
+        console.error("List documents error: ", error);
+        return res.status(500).json({ message: "Something went wrong while fetching documents!" });
+    }
+});
+
 export default router;

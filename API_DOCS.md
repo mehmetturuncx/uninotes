@@ -58,7 +58,27 @@ Kullanıcının sisteme sadece davet kodu ile kaydolmasını sağlar.
 
 ## 2. Dökümanlar (Documents)
 
-### 2.1. Döküman Yükle (Upload)
+### 3. Kullanıcının Belgelerini Listeleme
+- **URL:** `/documents`
+- **Method:** `GET`
+- **Headers:** 
+  - `Authorization: Bearer <token>`
+- **Response (200 OK):**
+```json
+{
+  "documents": [
+    {
+      "id": "doc-uuid",
+      "title": "Tarih Notları.pdf",
+      "url": "https://pub-xxx.r2.dev/doc.pdf",
+      "status": "COMPLETED",
+      "createdAt": "2026-08-28T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### 4. Belge Yükleme (PDF veya Resim)
 Kullanıcının PDF veya Fotoğraf dosyası yüklemesini sağlar. PDF'ler `PENDING` statüsünde yüklenir ve OCR işlemine girer.
 - **Method:** `POST`
 - **Endpoint:** `/documents/upload`
