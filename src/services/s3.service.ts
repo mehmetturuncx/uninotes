@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import crypto from 'crypto';
 
 // S3 veya Cloudflare R2 için istemciyi (Client) oluşturuyoruz
@@ -60,4 +60,22 @@ export const deleteFile = async (fileUrl: string): Promise<void> => {
   });
 
   await s3Client.send(command);
+};
+
+export const getFile = async (fileUrl: string): Promise<Buffer> => {
+  const bucketName = process.env.S3_BUCKET_NAME;
+  if (!bucketName) {
+    throw new Error('S3_BUCKET_NAME environment variable is not set!');
+  }
+
+  const key = fileUrl.substring(fileUrl.lastIndexOf('/') + 1);
+
+  const command = new GetObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+  });
+
+  const response = await s3Client.send(command);
+  const byteArray = await response.Body?.transformToByteArray();
+  return Buffer.from(byteArray || []);
 };

@@ -2,11 +2,11 @@ import { authMiddleware } from "../middlewares/auth.middleware";
 import { Router } from "express";
 import multer from 'multer';
 import crypto from 'crypto';
-import { uploadFile, deleteFile } from "../services/s3.service";
+import { uploadFile, deleteFile, getFile } from "../services/s3.service";
 import { db } from "../prisma/db";
 import { Queue } from "bullmq";
 
- 
+
 const router = Router();
 
 const upload = multer({
@@ -16,18 +16,20 @@ const upload = multer({
 
 import IORedis from 'ioredis';
 
-const connection = process.env.REDIS_URL 
+const connection = process.env.REDIS_URL
     ? new IORedis(process.env.REDIS_URL, { maxRetriesPerRequest: null })
     : new IORedis({
         host: process.env.REDIS_HOST || 'localhost',
         port: parseInt(process.env.REDIS_PORT || '6379'),
         maxRetriesPerRequest: null
-      });
+    });
 
-const ocr_queue = new Queue('ocr-queue', {connection, defaultJobOptions: {
-    attempts: 3,
-    backoff: {type: 'fixed', delay: 1000}
-}});
+const ocr_queue = new Queue('ocr-queue', {
+    connection, defaultJobOptions: {
+        attempts: 3,
+        backoff: { type: 'fixed', delay: 1000 }
+    }
+});
 
 router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
     const user = req.user?.id;
@@ -57,36 +59,45 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
             size: req.file.buffer.length,
             mimeType: req.file.mimetype,
             userId: user,
-            status: isPdf ? "PENDING": "COMPLETED"
+            status: isPdf ? "PENDING" : "COMPLETED"
         });
 
         if (isPdf) {
             await ocr_queue.add('ocr-job', {
                 documentId: createdDoc.id,
                 url: createdDoc.url
-            }, {attempts: 3, backoff: {
-                type: 'fixed', delay: 1000
-            }});
+            }, {
+                attempts: 3, backoff: {
+                    type: 'fixed', delay: 1000
+                }
+            });
         }
 
-        return res.status(201).json({ document: createdDoc });
+        const fileViewUrl = `${req.protocol}://${req.get('host')}/documents/${createdDoc.id}/file`;
+
+        return res.status(201).json({
+            document: {
+                ...createdDoc,
+                url: fileViewUrl
+            }
+        })
     }
     catch (error) {
-        return res.status(500).json({message: "Something went wrong."});
+        return res.status(500).json({ message: "Something went wrong." });
     }
 });
 
 import { Pool } from 'pg';
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-router.get('/search', authMiddleware, async (req,res)=>{
+router.get('/search', authMiddleware, async (req, res) => {
     const user = req.user?.id;
-    if(!user) {
-        return res.status(401).json({message: "Unauthorized"});
+    if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
     }
     const q = req.query.q as string;
-    if(!q) {
-        return res.status(400).json({message: "Search term is required!"});
+    if (!q) {
+        return res.status(400).json({ message: "Search term is required!" });
     }
 
     try {
@@ -95,7 +106,7 @@ router.get('/search', authMiddleware, async (req,res)=>{
             await client.query('CREATE EXTENSION IF NOT EXISTS pg_trgm;');
             await client.query('CREATE EXTENSION IF NOT EXISTS unaccent;');
             await client.query("SET client_encoding TO 'UTF8';");
-            
+
             const queryText = `
                 SELECT id, title, url, "mimeType", "status"
                 FROM "document"
@@ -118,16 +129,20 @@ router.get('/search', authMiddleware, async (req,res)=>{
                 ) DESC, "createdAt" DESC
                 LIMIT 20;
             `;
-            
+
             const result = await client.query(queryText, [q]);
-            return res.status(200).json({results: result.rows});
+            const formattedResults = result.rows.map(row => ({
+                ...row,
+                url: `${req.protocol}://${req.get('host')}/documents/${row.id}/file`
+            }));
+            return res.status(200).json({ results: formattedResults });
         } finally {
             client.release();
         }
-    } 
+    }
     catch (error) {
         console.error("Search error: ", error);
-        return res.status(500).json({ message: "Something went wrong while searching!"});
+        return res.status(500).json({ message: "Something went wrong while searching!" });
     }
 });
 
@@ -141,13 +156,38 @@ router.get('/', authMiddleware, async (req, res) => {
         const documents = await db.orm.public.Document.where({})
             .orderBy(doc => doc.createdAt.desc())
             .all();
-        
-        return res.status(200).json({ documents });
+
+        const formattedDocuments = documents.map(doc => ({
+            ...doc,
+            url: `${req.protocol}://${req.get('host')}/documents/${doc.id}/file`
+        }));
+        return res.status(200).json({ documents: formattedDocuments });
     } catch (error) {
         console.error("List documents error: ", error);
         return res.status(500).json({ message: "Something went wrong while fetching documents!" });
     }
 });
+
+router.get('/:id/file', async (req, res) => {
+    const id = req.params.id;
+
+    try {
+        const document = await db.orm.public.Document.where({ id }).first();
+
+        if (!document || !document.url) {
+            return res.status(404).json({ message: "Document not found!" });
+        }
+
+        const fileBuffer = await getFile(document.url as string);
+        res.setHeader('Content-Type', document.mimeType);
+        res.setHeader('Content-Disposition', 'inline');
+        res.send(fileBuffer);
+    }
+    catch (error) {
+        console.error("Get file error: ", error);
+        return res.status(500).json({ message: "Something went wrong!" });
+    }
+})
 
 
 router.delete('/:id', authMiddleware, async (req, res) => {
@@ -160,13 +200,13 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     try {
         const document = await db.orm.public.Document.where({ id: documentId }).first();
-        
+
         if (!document) {
             return res.status(404).json({ message: "Document not found!" });
         }
 
-        if(document?.userId !== user) {
-            return res.status(403).json({message: "You do not have permission to delete this file."});
+        if (document?.userId !== user) {
+            return res.status(403).json({ message: "You do not have permission to delete this file." });
         }
 
         if (document.url) {
