@@ -3,11 +3,12 @@ import { registerSchema, loginSchema } from "../schemas/auth.schema";
 import  jwt  from "jsonwebtoken";
 import { db } from "../prisma/db";
 import bcrypt from "bcryptjs";
+import { registerLimiter, loginLimiter } from "../middlewares/rateLimiter";
 
 const router = Router();
  
 
-router.post('/register', async (req,res)=>{
+router.post('/register',registerLimiter,async (req,res)=>{
     const validation = registerSchema.safeParse(req);
 
     if(!validation.success) {
@@ -52,7 +53,7 @@ router.post('/register', async (req,res)=>{
     });
 });
 
-router.post('/login', async (req,res)=>{
+router.post('/login',loginLimiter,async (req,res)=>{
     const validation = loginSchema.safeParse(req);
 
     if(!validation.success) {
