@@ -131,7 +131,6 @@ router.get('/search', authMiddleware, async (req,res)=>{
     }
 });
 
-// Kullanıcının kendi yüklediği dökümanları listeleme
 router.get('/', authMiddleware, async (req, res) => {
     const user = req.user?.id;
     if (!user) {
@@ -150,29 +149,6 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-
-router.post('/retry-failed', authMiddleware, async (req, res) => {
-    try {
-        const failedDocs = await db.orm.public.Document.where({ status: 'FAILED' }).all();
-        
-        let queued = 0;
-        for (const doc of failedDocs) {
-            if (doc.mimeType === 'application/pdf' && doc.url) {
-                await db.orm.public.Document.where({ id: doc.id }).update({ status: 'PENDING' });
-                await ocr_queue.add('ocr-job', {
-                    documentId: doc.id,
-                    url: doc.url
-                }, { attempts: 3, backoff: { type: 'fixed', delay: 1000 } });
-                queued++;
-            }
-        }
-
-        return res.status(200).json({ message: `${queued} failed document(s) queued for retry.` });
-    } catch (error) {
-        console.error("Retry failed error: ", error);
-        return res.status(500).json({ message: "Something went wrong!" });
-    }
-});
 
 router.delete('/:id', authMiddleware, async (req, res) => {
     const user = req.user?.id;
@@ -193,7 +169,6 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             return res.status(403).json({message: "You do not have permission to delete this file."});
         }
 
-        // Cloudflare R2'den dosyayı sil
         if (document.url) {
             try {
                 await deleteFile(document.url);
@@ -202,7 +177,6 @@ router.delete('/:id', authMiddleware, async (req, res) => {
             }
         }
 
-        // Veritabanından kaydı sil
         await db.orm.public.Document.where({ id: documentId }).delete();
 
         return res.status(200).json({ message: "Document deleted successfully!" });
