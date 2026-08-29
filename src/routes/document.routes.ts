@@ -150,7 +150,7 @@ router.get('/', authMiddleware, async (req, res) => {
     }
 });
 
-// FAILED durumdaki PDF'leri yeniden OCR kuyruğuna gönder
+
 router.post('/retry-failed', authMiddleware, async (req, res) => {
     try {
         const failedDocs = await db.orm.public.Document.where({ status: 'FAILED' }).all();
@@ -174,7 +174,6 @@ router.post('/retry-failed', authMiddleware, async (req, res) => {
     }
 });
 
-// Dosya silme (sadece yükleyen kullanıcı veya herhangi bir kullanıcı silebilir — MVP)
 router.delete('/:id', authMiddleware, async (req, res) => {
     const user = req.user?.id;
     if (!user) {
@@ -185,9 +184,13 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 
     try {
         const document = await db.orm.public.Document.where({ id: documentId }).first();
-
+        
         if (!document) {
             return res.status(404).json({ message: "Document not found!" });
+        }
+
+        if(document?.userId !== user) {
+            return res.status(403).json({message: "You do not have permission to delete this file."});
         }
 
         // Cloudflare R2'den dosyayı sil
