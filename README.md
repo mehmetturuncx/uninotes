@@ -2,7 +2,7 @@
 
 Üniversite öğrencileri için **davetiyeli, yazım toleranslı arama destekli ve arka plan OCR işlemeli** ortak ders notu arşivi.
 
-Frontend'ci arkadaşının React uygulaması bu API'ye bağlanır → öğrenciler PDF/fotoğraf yükler → sistem arka planda metni çıkarır → herkes tüm notlar arasında arama yapabilir.
+Frontend bu API'ye bağlanır → öğrenciler PDF/fotoğraf yükler → sistem arka planda metni çıkarır → herkes tüm notlar arasında arama yapabilir.
 
 ---
 
@@ -127,7 +127,7 @@ Detaylı istek/yanıt formatları için → [`API_DOCS.md`](API_DOCS.md)
 | Rol | Kim |
 | :--- | :--- |
 | **Backend** | [@mehmetturuncx](https://github.com/mehmetturuncx) |
-| **Frontend** | React + Vite + Tailwind (ayrı repo, Vercel'de yayında) |
+| **Frontend** | [@enesKAYA16](https://github.com/EnesKAYA16) |
 
 ---
 
