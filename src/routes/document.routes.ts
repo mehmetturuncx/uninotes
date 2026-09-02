@@ -6,6 +6,7 @@ import { uploadFile, deleteFile, getFile } from "../services/s3.service";
 import { db } from "../prisma/db";
 import { Queue } from "bullmq";
 
+const allowed_mime_types = ['application/pdf', 'image/jpeg',   'image/png', 'image/webp' ];
 
 const router = Router();
 
@@ -33,12 +34,18 @@ const ocr_queue = new Queue('ocr-queue', {
 
 router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
     const user = req.user?.id;
+
+
     if (!user) {
         return res.status(401).json({ message: "User could bot be verified!" });
     }
 
     if (!req.file) {
         return res.status(400).json({ message: "File not found!" });
+    }
+
+    if(!allowed_mime_types.includes(req.file.mimetype)){
+        return res.status(400).json({ message: "Unsupported file type..."});
     }
 
     try {
@@ -50,7 +57,7 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
         }
         const uploadedFile = await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype);
 
-        const isPdf = req.file.mimetype === 'application/pdf';
+ 
 
         const createdDoc = await db.orm.public.Document.create({
             title: req.file.originalname,
@@ -59,13 +66,14 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
             size: req.file.buffer.length,
             mimeType: req.file.mimetype,
             userId: user,
-            status: isPdf ? "PENDING" : "COMPLETED"
+            status: "PENDING"
         });
 
-        if (isPdf) {
+        if (createdDoc) {
             await ocr_queue.add('ocr-job', {
                 documentId: createdDoc.id,
-                url: createdDoc.url
+                url: createdDoc.url,
+                mimeType: createdDoc.mimeType
             }, {
                 attempts: 3, backoff: {
                     type: 'fixed', delay: 1000
@@ -88,6 +96,7 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
 });
 
 import { Pool } from 'pg';
+import { includes } from "zod";
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 router.get('/search', authMiddleware, async (req, res) => {

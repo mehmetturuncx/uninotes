@@ -1,38 +1,59 @@
-import { Worker, Job, RedisConnection } from "bullmq";
+import { Worker, Job } from "bullmq";
 import { db } from "../prisma/db";
 import { PDFParse } from 'pdf-parse';
+import { TesseractOcrProvider } from "../services/ocr/tesseract.provider";
+import { isOcrQualityAcceptable } from "../services/ocr/qualityGate";
 
 export const startOcrWorker = (RedisConnection: any) => {
-    const worker = new Worker('ocr-queue', async (job:Job)=>{
-        const {documentId, url} = job.data;
+    const tesseractProvider = new TesseractOcrProvider();
+
+    const worker = new Worker('ocr-queue', async (job: Job) => {
+        const { documentId, url, mimeType } = job.data;
 
         console.log(`Processing job ${job.id} for document ${documentId}`);
 
         await db.orm.public.Document
-            .where({id: documentId})
-            .update({status: "PROCESSING"});
-        
+            .where({ id: documentId })
+            .update({ status: "PROCESSING" });
+
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
+        const buffer = Buffer.from(arrayBuffer);
 
-        const parser = new PDFParse(uint8Array);
-        const result = await parser.getText();
-        await parser.destroy();
+        if (mimeType === 'application/pdf') {
+            const uint8Array = new Uint8Array(arrayBuffer);
+            const parser = new PDFParse(uint8Array);
+            const result = await parser.getText();
+            await parser.destroy();
 
-        await db.orm.public.Document
-        .where({id: documentId})
-        .update({status:"COMPLETED", textContent: result.text});
-        
-    }, {connection: RedisConnection});
+            await db.orm.public.Document
+                .where({ id: documentId })
+                .update({ status: "COMPLETED", textContent: result.text });
+        }
+        if (mimeType?.startsWith('image/')) {
+            const ocrResult = await tesseractProvider.extractText(buffer, mimeType);
 
-    worker.on('failed', async (job,err)=>{
-        if(job){
-            if(job.attemptsMade >= (job.opts.attempts || 3)) {
+            const isQualityOk = isOcrQualityAcceptable(ocrResult);
+            if (isQualityOk) {
                 await db.orm.public.Document
-                    .where({id: job.data.documentId})
-                    .update({status:"FAILED"});
-                
+                    .where({ id: documentId })
+                    .update({ status: "COMPLETED", textContent: ocrResult.text });
+            }
+            else {
+                console.log("OCR quality gate failed, waiting for AI fallback...");
+            }
+        }
+
+
+    }, { connection: RedisConnection });
+
+    worker.on('failed', async (job, err) => {
+        if (job) {
+            if (job.attemptsMade >= (job.opts.attempts || 3)) {
+                await db.orm.public.Document
+                    .where({ id: job.data.documentId })
+                    .update({ status: "FAILED" });
+
                 console.log(JSON.stringify({
                     event: "JOB_FAILED",
                     traceId: job.data.documentId,
