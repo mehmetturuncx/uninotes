@@ -1,4 +1,5 @@
 import app from './app';
+import { terminateTesseract } from './services/ocr/tesseract.provider';
 import { startOcrWorker } from './worker/ocr.worker';
 import IORedis from 'ioredis';
 
@@ -29,4 +30,5 @@ process.on('SIGTERM', async () => {
   });
   await worker.close();
   redisConnection.quit();
+  await terminateTesseract();
 });

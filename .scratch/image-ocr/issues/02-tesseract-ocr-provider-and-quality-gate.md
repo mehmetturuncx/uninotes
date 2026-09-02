@@ -7,8 +7,8 @@ Extract text from clear image notes using an extensible Tesseract OCR provider (
 
 **Status:** ready-for-agent
 
-- [ ] An extensible `OcrProvider` interface and result type contract are defined.
-- [ ] `TesseractOcrProvider` lazily initializes a singleton worker configured with `tur+eng`.
-- [ ] A heuristic quality gate function checks confidence (`>= 60`), length (`>= 10`), and alphanumeric ratio (`>= 65%`).
-- [ ] Clean image jobs that pass the quality gate update document status to `COMPLETED` and persist `textContent`.
-- [ ] Unit tests verify provider execution and heuristic validation edge cases.
+- [x] An extensible `OcrProvider` interface and result type contract are defined.
+- [x] `TesseractOcrProvider` lazily initializes a singleton worker configured with `tur+eng`.
+- [x] A heuristic quality gate function checks confidence (`>= 60`), length (`>= 10`), and alphanumeric ratio (`>= 65%`).
+- [x] Clean image jobs that pass the quality gate update document status to `COMPLETED` and persist `textContent`.
+- [x] Unit tests verify provider execution and heuristic validation edge cases.
