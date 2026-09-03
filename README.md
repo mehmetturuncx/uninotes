@@ -11,7 +11,7 @@ Frontend bu API'ye bağlanır → öğrenciler PDF/fotoğraf yükler → sistem 
 | Özellik | Nasıl Çalışıyor? |
 | :--- | :--- |
 | **Davet Kodlu Kayıt** | Sadece yöneticinin ürettiği tek kullanımlık hex kodlarıyla üye olunabilir. Brute-force koruması aktif (`express-rate-limit`). |
-| **PDF Metin Çıkarma (OCR)** | Yüklenen PDF'ler Redis kuyruğuna (BullMQ) atılır, arka planda Worker metni çıkarır. 3 deneme hakkı, başarısız olursa `FAILED` işaretlenir. |
+| **Hibrit Metin Çıkarma (OCR & AI)** | PDF'ler (`pdf-parse`) ve görseller (JPG, PNG, WebP) BullMQ kuyruğuna atılır. Görseller önce `tesseract.js` ile taranır; kalite kapısını geçemeyen (el yazısı, düşük kontrast) durumlar otomatik Gemini Flash Vision modeline fallback yapar. |
 | **Yazım Toleranslı Arama** | PostgreSQL `pg_trgm` + `unaccent` eklentileriyle `WORD_SIMILARITY` tabanlı fuzzy search. `matematk` → `matematik`, `seker` → `şeker` gibi yazım hataları ve Türkçe karakter varyasyonları bulunur. |
 | **Ortak Arşiv** | Tüm kullanıcılar tüm notları görebilir ve arayabilir. Silme yetkisi yalnızca dosya sahibinde. |
 | **Dosya Deduplication** | SHA-256 hash kontrolü ile aynı dosyanın tekrar yüklenmesi engellenir (`409 Conflict`). |
@@ -34,7 +34,15 @@ src/
 ├── schemas/
 │   └── auth.schema.ts           # Zod doğrulama şemaları
 ├── services/
-│   └── s3.service.ts            # Cloudflare R2 (S3 uyumlu) upload/delete/get
+│   ├── s3.service.ts            # Cloudflare R2 (S3 uyumlu) upload/delete/get
+│   ├── ai/                      # Merkezi AI altyapısı (Vision OCR & Summarization)
+│   │   ├── gemini.client.ts
+│   │   └── gemini.service.ts
+│   └── ocr/                     # OCR Motorları ve Heuristic Kalite Kapısı
+│       ├── ocr.types.ts
+│       ├── qualityGate.ts
+│       ├── tesseract.provider.ts
+│       └── gemini.provider.ts
 ├── prisma/
 │   ├── contract.prisma          # Veritabanı şeması (User, Document, InviteCode)
 │   ├── db.ts                    # Prisma v8 client + Temporal polyfill
