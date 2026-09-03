@@ -96,8 +96,10 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
 });
 
 import { Pool } from 'pg';
-import { includes } from "zod";
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+pool.on('error', (err) => {
+    console.warn('PostgreSQL idle client disconnected:', err.message);
+});
 
 router.get('/search', authMiddleware, async (req, res) => {
     const user = req.user?.id;

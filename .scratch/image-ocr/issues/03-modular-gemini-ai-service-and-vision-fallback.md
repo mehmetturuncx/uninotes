@@ -7,7 +7,7 @@ A modular, centralized Gemini AI service that supports both vision extraction no
 
 **Status:** ready-for-agent
 
-- [ ] A centralized `ai` service (`gemini.client.ts` / `gemini.service.ts`) is established with configurable `GEMINI_MODEL` and API key.
-- [ ] `GeminiVisionOcrProvider` integrates with the AI service to extract text from image buffers.
-- [ ] A composite/fallback orchestrator automatically routes failed Tesseract results to Gemini Flash Vision.
-- [ ] Handwritten or low-quality test images successfully extract text via Gemini Flash and update document status to `COMPLETED`.
+- [x] A centralized `ai` service (`gemini.client.ts` / `gemini.service.ts`) is established with configurable `GEMINI_MODEL` and API key.
+- [x] `GeminiVisionOcrProvider` integrates with the AI service to extract text from image buffers.
+- [x] A composite/fallback orchestrator automatically routes failed Tesseract results to Gemini Flash Vision.
+- [x] Handwritten or low-quality test images successfully extract text via Gemini Flash and update document status to `COMPLETED`.

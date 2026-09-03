@@ -7,7 +7,7 @@ Verify end-to-end discoverability of OCR-extracted image notes in the shared vau
 
 **Status:** ready-for-agent
 
-- [ ] Searching for words with typos or unaccented variations matches text extracted from images.
-- [ ] Images with no extractable text complete gracefully as `COMPLETED` (empty `textContent`) without failing.
-- [ ] Unrecoverable processing errors trigger BullMQ retry up to 3 times before setting status to `FAILED`.
-- [ ] End-to-end flow from upload to search result is verified with automated tests.
+- [x] Searching for words with typos or unaccented variations matches text extracted from images.
+- [x] Images with no extractable text complete gracefully as `COMPLETED` (empty `textContent`) without failing.
+- [x] Unrecoverable processing errors trigger BullMQ retry up to 3 times before setting status to `FAILED`.
+- [x] End-to-end flow from upload to search result is verified with automated tests.

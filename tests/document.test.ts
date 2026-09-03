@@ -62,7 +62,7 @@ describe('Document Upload & Deduplication API', () => {
       const addArgs = addMock.mock.calls[0]!;
       expect(addArgs[0]).toBe('ocr-job'); // İşin adı
       expect(addArgs[1]).toHaveProperty('documentId', response.body.document.id);
-      expect(addArgs[1]).toHaveProperty('url', response.body.document.url);
+      expect(addArgs[1]).toHaveProperty('url', 'https://mock-s3-bucket.s3.amazonaws.com/test-doc.pdf');
     });
 
     it('Daha önce yüklenmiş aynı hash değerine sahip dosya tekrar yüklenmek istendiğinde 409 dönmeli', async () => {
@@ -97,6 +97,37 @@ describe('Document Upload & Deduplication API', () => {
         .attach('file', fileBuffer, 'unauth.pdf');
 
       expect(response.status).toBe(401);
+    });
+
+    it('Geçerli bir görsel (image/jpeg) yüklendiğinde PENDING kaydedilmeli ve kuyruğa mimeType iletilmeli', async () => {
+      const { token } = await getAuthToken('test_img@uni.edu', 'CODE_IMG');
+      const fileBuffer = Buffer.from('fake image binary content');
+
+      const response = await request(app)
+        .post('/documents/upload')
+        .set('Authorization', `Bearer ${token}`)
+        .attach('file', fileBuffer, 'notes.jpg');
+
+      expect(response.status).toBe(201);
+      expect(response.body.document).toHaveProperty('status', 'PENDING');
+      expect(response.body.document).toHaveProperty('mimeType', 'image/jpeg');
+
+      expect(addMock).toHaveBeenCalled();
+      const lastCall = addMock.mock.calls[addMock.mock.calls.length - 1]!;
+      expect(lastCall[1]).toHaveProperty('mimeType', 'image/jpeg');
+    });
+
+    it('Desteklenmeyen bir dosya türü yüklendiğinde 400 Bad Request dönmeli', async () => {
+      const { token } = await getAuthToken('test_invalid@uni.edu', 'CODE_INV');
+      const fileBuffer = Buffer.from('console.log("malicious");');
+
+      const response = await request(app)
+        .post('/documents/upload')
+        .set('Authorization', `Bearer ${token}`)
+        .attach('file', fileBuffer, 'script.exe');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/unsupported/i);
     });
   });
 });

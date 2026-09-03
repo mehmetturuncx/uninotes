@@ -144,4 +144,29 @@ describe('Search API: GET /documents/search', () => {
     expect(response.body.results.length).toBeGreaterThanOrEqual(1);
     expect(response.body.results[0].title).toBe('Tarih Final Ozeti.pdf');
   });
+
+  it('Görselden (image/jpeg) çıkarılan OCR metni fuzzy search ile aranabilmeli', async () => {
+    const { token, user } = await getAuthToken('test6@uni.edu', 'CODE6');
+    
+    // Görsel ders notu simülasyonu
+    await db.orm.public.Document.create({
+      title: 'Ders Notu Fotografi.jpg',
+      url: 'https://s3/ders_notu.jpg',
+      hash: 'hash-img-1',
+      size: 4096,
+      mimeType: 'image/jpeg',
+      userId: user.id,
+      status: 'COMPLETED',
+      textContent: 'Veri yapıları dersinde ikili arama ağaçları (binary search tree) konusu işlendi.'
+    });
+
+    // Yazım hatası içeren arama: "ikili arama agaclari" -> "agac"
+    const response = await request(app)
+      .get('/documents/search?q=ikili arama agaclari')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.results.length).toBeGreaterThanOrEqual(1);
+    expect(response.body.results[0].title).toBe('Ders Notu Fotografi.jpg');
+  });
 });
