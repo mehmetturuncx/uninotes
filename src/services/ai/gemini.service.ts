@@ -29,5 +29,26 @@ export async function extractTextFromImage(imageBuffer: Buffer, mimeType: string
 }
 
 export async function summarizeText(textContent: string): Promise<string> {
-    return "";
+    if (!textContent || !textContent.trim()) {
+        return "";
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+        throw new Error("GEMINI_API_KEY is not configured.");
+    }
+
+    const response = await ai.models.generateContent({
+        model: geminiModel,
+        contents:[
+            {
+                parts:[
+                    {
+                        text: `Sen üniversite ders notlarını özetleyen bir akademik asistansın. Önemli kavramları vurgulayarak, maddeler halinde ve anlaşılır şekilde özetle: \n\n${textContent}`
+                    }
+                ]
+            }
+        ]
+    });
+
+    return response.text || "";
 }

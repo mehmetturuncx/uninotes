@@ -1,0 +1,118 @@
+[
+  {
+    "id": "dropTable.conversation",
+    "label": "Drop table \"conversation\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "conversation"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"conversation\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"conversation\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop table \"conversation\"",
+        "sql": "DROP TABLE \"public\".\"conversation\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"conversation\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"conversation\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropTable.message",
+    "label": "Drop table \"message\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "message"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"message\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"message\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop table \"message\"",
+        "sql": "DROP TABLE \"public\".\"message\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"message\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"message\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.document.summary",
+    "label": "Add column \"summary\" to \"document\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "summary",
+        "table": "document"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"summary\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "document",
+          "summary"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"summary\"",
+        "sql": "ALTER TABLE \"public\".\"document\" ADD COLUMN \"summary\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"summary\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "document",
+          "summary"
+        ]
+      }
+    ]
+  }
+]
