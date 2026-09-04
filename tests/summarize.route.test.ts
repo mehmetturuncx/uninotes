@@ -184,5 +184,214 @@ describe('Document Summarization API: POST /documents/:id/summarize', () => {
       expect(docInDb).toBeDefined();
       expect(docInDb?.summary).toBeNull();
     });
+
+    it('Döküman durumu FAILED ise 400 Bad Request ve başarısızlık mesajı dönmeli', async () => {
+      const { token, user } = await getAuthToken('sum_failed@uni.edu', 'SUM_CODE_FAIL');
+
+      const doc = await db.orm.public.Document.create({
+        title: 'Bozuk Not.pdf',
+        hash: 'hash-sum-failed',
+        size: 500,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'FAILED',
+        textContent: null
+      });
+
+      const response = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        message: 'Document processing failed. Cannot summarize.'
+      });
+      expect(summarizeTextMock).not.toHaveBeenCalled();
+    });
+
+    it('Arasında boşluklar olsa bile boşluksuz karakter sayısı 20 den azsa 400 Bad Request dönmeli', async () => {
+      const { token, user } = await getAuthToken('sum_spaces@uni.edu', 'SUM_CODE_SPACES');
+
+      const doc = await db.orm.public.Document.create({
+        title: 'Bosluklu Not.pdf',
+        hash: 'hash-sum-spaces',
+        size: 500,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'COMPLETED',
+        textContent: 'a  b  c  d  e  f  g  h' // 22 karakter ama sadece 8 harf
+      });
+
+      const response = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        message: 'Document has insufficient text to summarize.'
+      });
+      expect(summarizeTextMock).not.toHaveBeenCalled();
+    });
+
+    it('summarizeText boş metin dönerse 500 dönmeli ve DB ye boş summary kaydedilmemeli', async () => {
+      const { token, user } = await getAuthToken('sum_empty@uni.edu', 'SUM_CODE_EMPTY');
+
+      const doc = await db.orm.public.Document.create({
+        title: 'Gecerli Not.pdf',
+        hash: 'hash-sum-empty-gen',
+        size: 500,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'COMPLETED',
+        textContent: 'Geçerli uzunlukta bir ders notu metni ama AI boş döndü.'
+      });
+
+      summarizeTextMock.mockResolvedValueOnce('');
+
+      const response = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(500);
+      const docInDb = await db.orm.public.Document.where({ id: doc.id }).first();
+      expect(docInDb?.summary).toBeNull();
+    });
+  });
+
+  describe('Frontend & Yük Uç Senaryoları (Production Edge Cases)', () => {
+    it('Frontend butona çift tıklama (Concurrent Requests): Eş zamanlı iki istekte sistem kilitlenmemeli ve ikisi de 200 dönmeli', async () => {
+      const { token, user } = await getAuthToken('sum_concurrent@uni.edu', 'SUM_CODE_CONC');
+
+      const doc = await db.orm.public.Document.create({
+        title: 'Concurrent Notu.pdf',
+        hash: 'hash-sum-concurrent',
+        size: 800,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'COMPLETED',
+        textContent: 'Bu ders notuna kullanıcı frontend üzerinden peş peşe iki kez tıklar.'
+      });
+
+      summarizeTextMock.mockResolvedValue('## Eşzamanlı Özet Sonucu');
+
+      // Butona çift tıklama simülasyonu (aynı anda iki paralel HTTP isteği)
+      const [res1, res2] = await Promise.all([
+        request(app).post(`/documents/${doc.id}/summarize`).set('Authorization', `Bearer ${token}`),
+        request(app).post(`/documents/${doc.id}/summarize`).set('Authorization', `Bearer ${token}`)
+      ]);
+
+      expect(res1.status).toBe(200);
+      expect(res2.status).toBe(200);
+      expect(res1.body.summary).toBe('## Eşzamanlı Özet Sonucu');
+      expect(res2.body.summary).toBe('## Eşzamanlı Özet Sonucu');
+    });
+
+    it('Ortak Kasa Mantığı: Notu yükleyen A kullanıcısı olsa bile B kullanıcısı özetletebilmeli ve C kullanıcısı cached alabilmeli', async () => {
+      const { user: userA } = await getAuthToken('studentA@uni.edu', 'CODE_STU_A');
+      const { token: tokenB } = await getAuthToken('studentB@uni.edu', 'CODE_STU_B');
+      const { token: tokenC } = await getAuthToken('studentC@uni.edu', 'CODE_STU_C');
+
+      // Öğrenci A notu yükler
+      const doc = await db.orm.public.Document.create({
+        title: 'Ortak Kasa Notu.pdf',
+        hash: 'hash-shared-vault',
+        size: 1000,
+        mimeType: 'application/pdf',
+        userId: userA.id,
+        status: 'COMPLETED',
+        textContent: 'Üniversite ortak kütüphanesindeki herkesin erişebildiği ders notu metni.'
+      });
+
+      summarizeTextMock.mockResolvedValueOnce('## Ortak Kasa Özeti');
+
+      // Öğrenci B özetleme ister (Cache Miss -> DB ye kaydeder)
+      const resB = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${tokenB}`);
+
+      expect(resB.status).toBe(200);
+      expect(resB.body.cached).toBe(false);
+
+      // Öğrenci C aynı nota tıklar (Cache Hit -> 0 maliyetle DB den anında alır)
+      const resC = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${tokenC}`);
+
+      expect(resC.status).toBe(200);
+      expect(resC.body.cached).toBe(true);
+      expect(resC.body.summary).toBe('## Ortak Kasa Özeti');
+    });
+
+    it('XSS ve Özel Karakterler içeren not metni güvenle özetlenebilmeli ve DB ye kaydedilebilmeli', async () => {
+      const { token, user } = await getAuthToken('sum_xss@uni.edu', 'SUM_CODE_XSS');
+
+      const complexContent = 'Web Güvenliği dersi: <script>alert("xss")</script> && "SELECT * FROM users;" -- \' OR 1=1';
+      const doc = await db.orm.public.Document.create({
+        title: 'Guvenlik Notu.pdf',
+        hash: 'hash-sum-xss',
+        size: 500,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'COMPLETED',
+        textContent: complexContent
+      });
+
+      summarizeTextMock.mockResolvedValueOnce('## Güvenlik Özeti\n- XSS ve SQLi prensipleri');
+
+      const response = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(200);
+      expect(summarizeTextMock).toHaveBeenCalledWith(complexContent);
+      
+      const updated = await db.orm.public.Document.where({ id: doc.id }).first();
+      expect(updated?.summary).toBe('## Güvenlik Özeti\n- XSS ve SQLi prensipleri');
+    });
+
+    it('Aşırı uzun / yoğun ders notunda (50.000+ karakter) sistem çökmeden özetleyebilmeli', async () => {
+      const { token, user } = await getAuthToken('sum_huge@uni.edu', 'SUM_CODE_HUGE');
+
+      // 50.000 karakterlik devasa ders notu simülasyonu
+      const hugeText = 'Fizik 101 Mekanik ve Termodinamik Prensipleri Notu. '.repeat(1000);
+
+      const doc = await db.orm.public.Document.create({
+        title: 'Devasa Kitap Notu.pdf',
+        hash: 'hash-sum-huge',
+        size: 50000,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'COMPLETED',
+        textContent: hugeText
+      });
+
+      summarizeTextMock.mockResolvedValueOnce('## Devasa Notun Kompakt Özeti');
+
+      const response = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(200);
+      expect(response.body.summary).toBe('## Devasa Notun Kompakt Özeti');
+      expect(summarizeTextMock).toHaveBeenCalledWith(hugeText);
+    });
+
+    it('Frontend URL enjeksiyonu veya geçersiz ID parametresinde çökmeden 404 dönmeli', async () => {
+      const { token } = await getAuthToken('sum_param@uni.edu', 'SUM_CODE_PARAM');
+
+      const maliciousIds = [
+        '../../etc/passwd',
+        "' OR '1'='1",
+        '<script>alert(1)</script>'
+      ];
+
+      for (const badId of maliciousIds) {
+        const response = await request(app)
+          .post(`/documents/${encodeURIComponent(badId)}/summarize`)
+          .set('Authorization', `Bearer ${token}`);
+
+        expect(response.status).toBe(404);
+      }
+    });
   });
 });

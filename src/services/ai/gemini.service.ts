@@ -43,7 +43,7 @@ export async function summarizeText(textContent: string): Promise<string> {
             {
                 parts:[
                     {
-                        text: `Sen üniversite ders notlarını özetleyen bir akademik asistansın. Önemli kavramları vurgulayarak, maddeler halinde ve anlaşılır şekilde özetle: \n\n${textContent}`
+                        text: `Sen üniversite ders notlarını özetleyen bir akademik asistansın. Önemli kavramları vurgulayarak, maddeler halinde ve anlaşılır şekilde özetle. Yalnızca verilen ders notundaki bilgilere sadık kal; metinde yer almayan hiçbir bilgiyi veya varsayımı ekleme:\n\n${textContent}`
                     }
                 ]
             }

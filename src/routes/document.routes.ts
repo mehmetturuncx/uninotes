@@ -251,19 +251,27 @@ router.post('/:id/summarize', authMiddleware, async (req, res) => {
             return res.status(200).json({ summary: doc.summary, cached: true});
         }
 
-        if (doc.status !== "COMPLETED") {
-            return res.status(400).json({message: "Document is still processing. Please wait."});
+        if (doc.status === "FAILED") {
+            return res.status(400).json({ message: "Document processing failed. Cannot summarize." });
         }
 
-        if(!doc.textContent || doc.textContent.trim().length < 20) {
-            return res.status(400).json({message: "Document has insufficent text to summarize."});
+        if (doc.status !== "COMPLETED") {
+            return res.status(400).json({ message: "Document is still processing. Please wait." });
+        }
+
+        const nonWhitespaceLength = (doc.textContent || "").replace(/\s/g, "").length;
+        if (nonWhitespaceLength < 20) {
+            return res.status(400).json({ message: "Document has insufficient text to summarize." });
         }
 
         const summary = await summarizeText(doc.textContent || "");
+        if (!summary) {
+            return res.status(500).json({ message: "Failed to generate summary." });
+        }
 
-        await db.orm.public.Document.where({id}).update({summary});
+        await db.orm.public.Document.where({ id }).update({ summary });
 
-        return res.status(200).json({ summary, cached:false});
+        return res.status(200).json({ summary, cached: false });
         
     }
     catch(error) {
