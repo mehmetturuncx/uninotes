@@ -5,8 +5,9 @@ import crypto from 'crypto';
 import { uploadFile, deleteFile, getFile } from "../services/s3.service";
 import { db } from "../prisma/db";
 import { Queue } from "bullmq";
+import { summarizeText } from "../services/ai/gemini.service";
 
-const allowed_mime_types = ['application/pdf', 'image/jpeg',   'image/png', 'image/webp' ];
+const allowed_mime_types = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 
 const router = Router();
 
@@ -44,8 +45,8 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
         return res.status(400).json({ message: "File not found!" });
     }
 
-    if(!allowed_mime_types.includes(req.file.mimetype)){
-        return res.status(400).json({ message: "Unsupported file type..."});
+    if (!allowed_mime_types.includes(req.file.mimetype)) {
+        return res.status(400).json({ message: "Unsupported file type..." });
     }
 
     try {
@@ -57,7 +58,7 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
         }
         const uploadedFile = await uploadFile(req.file.buffer, req.file.originalname, req.file.mimetype);
 
- 
+
 
         const createdDoc = await db.orm.public.Document.create({
             title: req.file.originalname,
@@ -198,8 +199,7 @@ router.get('/:id/file', async (req, res) => {
         console.error("Get file error: ", error);
         return res.status(500).json({ message: "Something went wrong!" });
     }
-})
-
+});
 
 router.delete('/:id', authMiddleware, async (req, res) => {
     const user = req.user?.id;
@@ -234,6 +234,49 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     } catch (error) {
         console.error("Delete document error: ", error);
         return res.status(500).json({ message: "Something went wrong while deleting the document!" });
+    }
+});
+
+router.post('/:id/summarize', authMiddleware, async (req, res) => {
+    const id = req.params.id as string;
+
+    try {
+        const doc = await db.orm.public.Document.where({ id }).first();
+
+        if (!doc) {
+            return res.status(404).json({ message: "Document not found!" });
+        }
+
+        if(doc.summary) {
+            return res.status(200).json({ summary: doc.summary, cached: true});
+        }
+
+        if (doc.status === "FAILED") {
+            return res.status(400).json({ message: "Document processing failed. Cannot summarize." });
+        }
+
+        if (doc.status !== "COMPLETED") {
+            return res.status(400).json({ message: "Document is still processing. Please wait." });
+        }
+
+        const nonWhitespaceLength = (doc.textContent || "").replace(/\s/g, "").length;
+        if (nonWhitespaceLength < 20) {
+            return res.status(400).json({ message: "Document has insufficient text to summarize." });
+        }
+
+        const summary = await summarizeText(doc.textContent || "");
+        if (!summary) {
+            return res.status(500).json({ message: "Failed to generate summary." });
+        }
+
+        await db.orm.public.Document.where({ id }).update({ summary });
+
+        return res.status(200).json({ summary, cached: false });
+        
+    }
+    catch(error) {
+        console.error("Summarize error: ", error);
+        return res.status(500).json({ message: "Something went wrong while summarizing the document!"});
     }
 });
 

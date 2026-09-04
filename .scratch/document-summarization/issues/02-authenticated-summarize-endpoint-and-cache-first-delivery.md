@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] `POST /documents/:id/summarize` route is registered under document routes and protected by authentication middleware.
-- [ ] If `document.summary` is already present in the database, the endpoint returns `200 OK` with `{ summary, cached: true }` without calling the AI service.
-- [ ] If `document.summary` is not present, the endpoint calls `summarizeText`, persists the resulting summary into `document.summary`, and returns `200 OK` with `{ summary, cached: false }`.
-- [ ] Route rejects requests with `401 Unauthorized` if no valid JWT token is provided.
-- [ ] Route returns `404 Not Found` if the requested document ID does not exist.
-- [ ] Integration tests verify both cache-hit and cache-miss scenarios with mocked AI calls.
+- [x] `POST /documents/:id/summarize` route is registered under document routes and protected by authentication middleware.
+- [x] If `document.summary` is already present in the database, the endpoint returns `200 OK` with `{ summary, cached: true }` without calling the AI service.
+- [x] If `document.summary` is not present, the endpoint calls `summarizeText`, persists the resulting summary into `document.summary`, and returns `200 OK` with `{ summary, cached: false }`.
+- [x] Route rejects requests with `401 Unauthorized` if no valid JWT token is provided.
+- [x] Route returns `404 Not Found` if the requested document ID does not exist.
+- [x] Integration tests verify both cache-hit and cache-miss scenarios with mocked AI calls.
