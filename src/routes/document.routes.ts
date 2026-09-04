@@ -251,6 +251,14 @@ router.post('/:id/summarize', authMiddleware, async (req, res) => {
             return res.status(200).json({ summary: doc.summary, cached: true});
         }
 
+        if (doc.status !== "COMPLETED") {
+            return res.status(400).json({message: "Document is still processing. Please wait."});
+        }
+
+        if(!doc.textContent || doc.textContent.trim().length < 20) {
+            return res.status(400).json({message: "Document has insufficent text to summarize."});
+        }
+
         const summary = await summarizeText(doc.textContent || "");
 
         await db.orm.public.Document.where({id}).update({summary});

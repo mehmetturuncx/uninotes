@@ -112,4 +112,77 @@ describe('Document Summarization API: POST /documents/:id/summarize', () => {
     // Cache hit durumunda AI kesinlikle çağrılmamalı (0 maliyet)
     expect(summarizeTextMock).not.toHaveBeenCalled();
   });
+
+  describe('Uç Durumlar (Ticket 03 Edge Cases)', () => {
+    it('Döküman durumu COMPLETED değilse (örn: PENDING veya PROCESSING) 400 Bad Request dönmeli', async () => {
+      const { token, user } = await getAuthToken('sum_pending@uni.edu', 'SUM_CODE_PEND');
+
+      const doc = await db.orm.public.Document.create({
+        title: 'Bekleyen Not.pdf',
+        hash: 'hash-sum-pending',
+        size: 500,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'PROCESSING',
+        textContent: 'Henüz OCR devam ediyor...'
+      });
+
+      const response = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('message');
+      expect(summarizeTextMock).not.toHaveBeenCalled();
+    });
+
+    it('Dökümanın textContent alanı boş veya 20 karakterden kısaysa 400 Bad Request dönmeli', async () => {
+      const { token, user } = await getAuthToken('sum_short@uni.edu', 'SUM_CODE_SHORT');
+
+      const doc = await db.orm.public.Document.create({
+        title: 'Kisa Metin.pdf',
+        hash: 'hash-sum-short',
+        size: 500,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'COMPLETED',
+        textContent: 'Kısa not' // < 20 karakter
+      });
+
+      const response = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('message');
+      expect(summarizeTextMock).not.toHaveBeenCalled();
+    });
+
+    it('summarizeText API kesintisinde hata fırlatırsa 500 dönmeli ve veritabanı dökümanı bozulmamalı', async () => {
+      const { token, user } = await getAuthToken('sum_err@uni.edu', 'SUM_CODE_ERR');
+
+      const doc = await db.orm.public.Document.create({
+        title: 'Hata Notu.pdf',
+        hash: 'hash-sum-err',
+        size: 500,
+        mimeType: 'application/pdf',
+        userId: user.id,
+        status: 'COMPLETED',
+        textContent: 'Bu döküman özetlenirken yapay zeka servisinde beklenmedik bir kesinti oluşacak.'
+      });
+
+      summarizeTextMock.mockRejectedValueOnce(new Error('Gemini API 503 Service Unavailable'));
+
+      const response = await request(app)
+        .post(`/documents/${doc.id}/summarize`)
+        .set('Authorization', `Bearer ${token}`);
+
+      expect(response.status).toBe(500);
+
+      // Veritabanındaki döküman sağlam kalmalı (summary null olarak kalmalı, veri silinmemeli)
+      const docInDb = await db.orm.public.Document.where({ id: doc.id }).first();
+      expect(docInDb).toBeDefined();
+      expect(docInDb?.summary).toBeNull();
+    });
+  });
 });
