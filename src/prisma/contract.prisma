@@ -33,6 +33,7 @@ model Document {
   size        Int
   mimeType    String
   textContent String?
+  summary     String?
   status      DocumentStatus @default(PENDING)
   userId    String
   user      User           @relation(fields: [userId], references: [id])
