@@ -130,8 +130,39 @@ Yüklenen dökümanlar arasında yazım toleranslı (typo-tolerant) arama yapar 
 }
 ```
 
-### 2.4. Belge Silme (Delete)
-Bir belgeyi hem veritabanından hem de Cloudflare R2'den kalıcı olarak siler.
+### 2.4. Belgeyi Görüntüleme / İndirme (Proxy Stream)
+Dosyayı Cloudflare R2 üzerinden proxy ederek tarayıcıda doğrudan (inline) açılmasını sağlar (`r2.dev` engellemelerine takılmaz).
+- **Method:** `GET`
+- **Endpoint:** `/documents/:id/file`
+- **Headers:** *(Auth zorunlu değildir, doğrudan tarayıcı linki olarak açılabilir)*
+- **Başarılı Dönüş (200 OK):**
+  - Ham dosya akışı (binary stream) döner.
+  - `Content-Type`: Belgenin mimeType'ı (örn: `application/pdf`, `image/jpeg`)
+  - `Content-Disposition`: `inline`
+
+---
+
+### 2.5. Belge Metnini Yapay Zeka ile Özetleme (AI Summarize)
+Belgenin metin içeriğini (`textContent`) Google Gemini kullanarak akademik formatta maddeler halinde özetler. İlk çağrıda özet üretilip veritabanına kaydedilir (`cached: false`); sonraki çağrılarda kayıtlı özet doğrudan döner (`cached: true`).
+- **Method:** `POST`
+- **Endpoint:** `/documents/:id/summarize`
+- **Headers:**
+  - `Authorization: Bearer <TOKEN>`
+- **Başarılı Dönüş (200 OK):**
+```json
+{
+  "summary": "• Konu 1: Ana başlık açıklaması\n• Konu 2: Önemli formüller ve teoremler",
+  "cached": false
+}
+```
+- **Hata Durumları:**
+  - `400 Bad Request`: Belge henüz işleniyorsa (`PROCESSING`), başarısız olduysa (`FAILED`) veya yeterli metin içeriği yoksa (< 20 karakter).
+  - `404 Not Found`: Belge bulunamadığında.
+
+---
+
+### 2.6. Belge Silme (Delete)
+Bir belgeyi hem veritabanından hem de Cloudflare R2'den kalıcı olarak siler. Sadece belgeyi yükleyen kullanıcı silebilir.
 - **Method:** `DELETE`
 - **Endpoint:** `/documents/:id`
 - **Headers:**
@@ -142,4 +173,4 @@ Bir belgeyi hem veritabanından hem de Cloudflare R2'den kalıcı olarak siler.
   "message": "Document deleted successfully!"
 }
 ```
-*(Belge bulunamazsa `404 Not Found` döner)*
+*(Belge bulunamazsa `404 Not Found`, başkasının belgesi ise `403 Forbidden` döner)*
