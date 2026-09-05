@@ -10,8 +10,16 @@ let ocrQueue: Queue;
 let worker: Worker;
 
 // PDF Parse mock
-export const getTextMock = vi.fn().mockResolvedValue({ text: 'Extracted PDF content' });
+const VALID_PDF_TEXT = 'Bu bir universite ders notu icerigidir ve gayet okunakli bir metindir.';
+export const getTextMock = vi.fn().mockResolvedValue({ text: VALID_PDF_TEXT });
 export const destroyMock = vi.fn().mockResolvedValue(undefined);
+
+export const extractTextFromImageMock = vi.fn().mockResolvedValue('Fallback Gemini Vision extracted text');
+
+vi.mock('../src/services/ai/gemini.service', () => ({
+  extractTextFromImage: (...args: any[]) => extractTextFromImageMock(...args),
+  summarizeText: vi.fn()
+}));
 
 vi.mock('pdf-parse', () => ({
   PDFParse: class {
@@ -47,11 +55,16 @@ describe('Worker Seam: OCR Processor', () => {
   });
 
   beforeEach(async () => {
+    if (worker) {
+      await worker.close();
+    }
     await db.orm.public.Document.where({}).delete();
     await db.orm.public.User.where({}).delete();
     
     await ocrQueue.obliterate({ force: true });
     vi.clearAllMocks();
+    getTextMock.mockResolvedValue({ text: VALID_PDF_TEXT });
+    extractTextFromImageMock.mockResolvedValue('Fallback Gemini Vision extracted text');
   });
 
   it('Başarılı senaryo: PDF parse edilip veritabanı güncellenmeli', async () => {
@@ -89,8 +102,43 @@ describe('Worker Seam: OCR Processor', () => {
 
     const updatedDoc = await db.orm.public.Document.where({ id: doc.id }).first();
     expect(updatedDoc.status).toBe('COMPLETED');
-    expect(updatedDoc.textContent).toBe('Extracted PDF content');
+    expect(updatedDoc.textContent).toBe(VALID_PDF_TEXT);
     expect(getTextMock).toHaveBeenCalled();
+  });
+
+  it('Kalite kapısından geçmeyen (taranmış/kısa) PDF: Gemini Vision fallback ile işlenmeli', async () => {
+    const mockUser = await db.orm.public.User.create({
+      email: 'worker-fallback@uni.edu',
+      password: 'hash'
+    });
+
+    const doc = await db.orm.public.Document.create({
+      title: 'scanned.pdf',
+      url: 'https://s3/scanned.pdf',
+      hash: 'hash-fallback',
+      size: 100,
+      mimeType: 'application/pdf',
+      userId: mockUser.id,
+      status: 'PENDING'
+    });
+
+    // Kalite kapısından geçmeyecek kısa metin
+    getTextMock.mockResolvedValueOnce({ text: 'Page 1' });
+
+    let startOcrWorker = (await import('../src/worker/ocr.worker')).startOcrWorker;
+    worker = startOcrWorker(redisConnection);
+
+    await ocrQueue.add('ocr-job', {
+      documentId: doc.id,
+      url: doc.url
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const updatedDoc = await db.orm.public.Document.where({ id: doc.id }).first();
+    expect(updatedDoc.status).toBe('COMPLETED');
+    expect(updatedDoc.textContent).toBe('Fallback Gemini Vision extracted text');
+    expect(extractTextFromImageMock).toHaveBeenCalled();
   });
 
   it('Hata senaryosu: PDF okunamıyorsa 3 denemeden sonra FAILED statüsüne geçmeli', async () => {

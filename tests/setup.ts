@@ -20,7 +20,12 @@ beforeAll(async () => {
     // Tabloları oluştur
     execSync('npx prisma db init', { env: process.env, stdio: 'inherit' });
   } catch (err: any) {
-    console.warn('⚠️ Docker container başlatılamadı. Saf birim (unit) testler çalışmaya devam edecek.');
+    console.warn('⚠️ Docker container başlatılamadı.');
+    // GÜVENLİK KİLİDİ: Testlerin canlı Supabase veritabanına bağlanıp tabloları silmesini engelliyoruz
+    if (process.env.DATABASE_URL?.includes('supabase.com')) {
+      console.warn('🛡️ Güvenlik Koruması: Testlerin canlı Supabase veritabanını silmesi engellendi.');
+      process.env.DATABASE_URL = 'postgresql://disabled:disabled@127.0.0.1:54321/prevent_production_wipe';
+    }
   }
 });
 

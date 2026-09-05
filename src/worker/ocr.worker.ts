@@ -2,7 +2,7 @@ import { Worker, Job } from "bullmq";
 import { db } from "../prisma/db";
 import { PDFParse } from 'pdf-parse';
 import { TesseractOcrProvider } from "../services/ocr/tesseract.provider";
-import { isOcrQualityAcceptable } from "../services/ocr/qualityGate";
+import { isOcrQualityAcceptable, isPdfAcceptable } from "../services/ocr/qualityGate";
 import { GeminiVisionOcrProvider } from "../services/ocr/gemini.provider";
 
 export const startOcrWorker = (RedisConnection: any) => {
@@ -38,9 +38,24 @@ export const startOcrWorker = (RedisConnection: any) => {
             const result = await parser.getText();
             await parser.destroy();
 
-            await db.orm.public.Document
-                .where({ id: documentId })
-                .update({ status: "COMPLETED", textContent: result.text });
+            const isQualityOk = isPdfAcceptable(result.text);
+
+            if (isQualityOk) {
+                await db.orm.public.Document
+                    .where({ id: documentId })
+                    .update({ status: "COMPLETED", textContent: result.text });
+            }
+            else {
+                console.log(`PDF quality gate failed for ${documentId}, falling back to Gemini Vision...`);
+
+                const aiResult = await geminiProvider.extractText(buffer, effectiveMimeType);
+
+                await db.orm.public.Document
+                    .where({ id: documentId })
+                    .update({ status: "COMPLETED", textContent: aiResult.text });
+            }
+
+
         }
         if (effectiveMimeType?.startsWith('image/')) {
             const ocrResult = await tesseractProvider.extractText(buffer, effectiveMimeType);
@@ -54,11 +69,11 @@ export const startOcrWorker = (RedisConnection: any) => {
             else {
                 console.log(`OCR quality gate failed for doc ${documentId}, falling back to Gemini Vision...`);
 
-                const aiResult = await geminiProvider.extractText(buffer, effectiveMimeType);     
-                
+                const aiResult = await geminiProvider.extractText(buffer, effectiveMimeType);
+
                 await db.orm.public.Document
-                    .where({id: documentId})
-                    .update({ status: "COMPLETED", textContent: aiResult.text});
+                    .where({ id: documentId })
+                    .update({ status: "COMPLETED", textContent: aiResult.text });
             }
         }
 
